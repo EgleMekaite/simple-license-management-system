@@ -1,0 +1,23 @@
+<h1>Subscriptions for <%= @account.name %></h1>
+
+<p>
+  <%= link_to "New Subscription", new_account_subscription_path(@account) %>
+  |
+  <%= link_to "Back to Account", account_path(@account) %>
+</p>
+
+<% if @subscriptions.any? %>
+  <ul>
+    <% @subscriptions.each do |sub| %>
+      <li>
+        <strong><%= sub.product.name %></strong>
+        — Licenses: <%= sub.number_of_licenses %>
+        — <%= sub.issued_at.to_date %> → <%= sub.expires_at.to_date %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p>No subscriptions yet.</p>
+<% end %>
+
+

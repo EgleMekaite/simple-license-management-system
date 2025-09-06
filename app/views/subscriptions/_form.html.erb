@@ -1,0 +1,38 @@
+<%= form_with model: [@account, subscription] do |form| %>
+  <% if subscription.errors.any? %>
+    <div>
+      <h2><%= pluralize(subscription.errors.count, "error") %> prohibited this subscription from being saved:</h2>
+      <ul>
+        <% subscription.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :product_id, "Product" %><br>
+    <%= form.collection_select :product_id, products, :id, :name, prompt: "Select a product" %>
+  </div>
+
+  <div>
+    <%= form.label :number_of_licenses %><br>
+    <%= form.number_field :number_of_licenses, min: 1, step: 1 %>
+  </div>
+
+  <div>
+    <%= form.label :issued_at %><br>
+    <%= form.datetime_local_field :issued_at %>
+  </div>
+
+  <div>
+    <%= form.label :expires_at %><br>
+    <%= form.datetime_local_field :expires_at %>
+  </div>
+
+  <div>
+    <%= form.submit "Create Subscription" %>
+  </div>
+<% end %>
+
+

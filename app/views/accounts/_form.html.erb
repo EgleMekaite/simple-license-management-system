@@ -1,0 +1,23 @@
+<%= form_with model: account do |form| %>
+  <% if account.errors.any? %>
+    <div>
+      <h2><%= pluralize(account.errors.count, "error") %> prohibited this account from being saved:</h2>
+      <ul>
+        <% account.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :name %><br>
+    <%= form.text_field :name, autofocus: true %>
+  </div>
+
+  <div>
+    <%= form.submit "Create Account" %>
+  </div>
+<% end %>
+
+

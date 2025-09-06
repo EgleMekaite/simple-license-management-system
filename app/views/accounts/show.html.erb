@@ -1,0 +1,170 @@
+<h1 class="page-title">Account: <%= @account.name %></h1>
+
+<% if flash[:alert].present? %>
+  <div class="alert-banner">
+    <%= flash[:alert] %>
+  </div>
+<% end %>
+
+<div class="assignment-grid">
+  <div class="panel panel-left">
+    <h2 class="panel-title">Product Licenses</h2>
+    <form id="assign-form" action="<%= account_license_assignments_path(@account) %>" method="post" style="display:none;">
+      <%= csrf_meta_tags %>
+      <div id="assign-hidden"></div>
+    </form>
+    <form id="unassign-form" action="<%= unassign_account_license_assignments_path(@account) %>" method="post" style="display:none;">
+      <%= csrf_meta_tags %>
+      <div id="unassign-hidden"></div>
+    </form>
+
+    <select id="product-list" size="12" multiple class="listbox">
+      <% Subscription.where(account: @account).includes(:product).order("products.name").each do |sub| %>
+        <% used = LicenseAssignment.where(account: @account, product_id: sub.product_id).count %>
+        <% remaining = [sub.number_of_licenses - used, 0].max %>
+        <option value="<%= sub.product_id %>" data-remaining="<%= remaining %>" data-label="<%= sub.product.name %>"><%= sub.product.name %> (<%= used %>/<%= sub.number_of_licenses %>)</option>
+      <% end %>
+    </select>
+    <div class="below-list">
+      <button type="button" id="unselect-products-btn" class="btn">Unselect products</button>
+    </div>
+  </div>
+
+  <div class="panel action-panel">
+    <div id="assign-warning" class="alert-banner" style="display:none;"></div>
+    <button type="button" id="assign-btn" class="btn btn-large">Assign</button>
+    <button type="button" id="unassign-btn" class="btn btn-large">Unassign</button>
+    <p>
+      <%= link_to "Manage Users", account_users_path(@account) %> |
+      <%= link_to "Manage Subscriptions", account_subscriptions_path(@account) %>
+    </p>
+  </div>
+
+  <div class="panel panel-right">
+    <h2 class="panel-title">Users</h2>
+    <select id="user-list" size="12" multiple class="listbox">
+      <% @account.users.order(:name).each do |u| %>
+        <option value="<%= u.id %>"><%= u.name %></option>
+      <% end %>
+    </select>
+    <div class="below-list">
+      <button type="button" id="unselect-users-btn" class="btn">Unselect users</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    function selectedValue(select){ return select.value; }
+    function selectedValues(select){ return Array.from(select.selectedOptions||[]).map(o=>o.value); }
+
+    var productsSelect = document.getElementById('product-list');
+    var usersSelect = document.getElementById('user-list');
+    var assignBtn = document.getElementById('assign-btn');
+    var unassignBtn = document.getElementById('unassign-btn');
+    var unselectProductsBtn = document.getElementById('unselect-products-btn');
+    var unselectUsersBtn = document.getElementById('unselect-users-btn');
+    var assignWarning = document.getElementById('assign-warning');
+
+    function setArrayInputs(containerId, name, values){
+      var container = document.getElementById(containerId);
+      if(!container) return;
+      container.innerHTML = '';
+      values.forEach(function(v){
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name + '[]';
+        input.value = v;
+        container.appendChild(input);
+      });
+    }
+
+    function getSelectedProductOptions(){ return Array.from(productsSelect.selectedOptions||[]); }
+    function remainingFor(option){ return parseInt(option.dataset.remaining || '0', 10); }
+    function productLabel(option){ return option.dataset.label || option.textContent || option.value; }
+
+    function validateCapacity(selectedProductOptions, selectedUserIds){
+      var issues = [];
+      var userCount = selectedUserIds.length;
+      selectedProductOptions.forEach(function(opt){
+        var remaining = remainingFor(opt);
+        if(userCount > remaining){
+          issues.push('[' + productLabel(opt) + '] insufficient capacity (' + remaining + ' remaining).');
+        }
+      });
+      return issues;
+    }
+
+    function listToSentence(names){
+      if(names.length <= 1){ return names.join(''); }
+      var allButLast = names.slice(0, -1).join(', ');
+      var last = names[names.length - 1];
+      return allButLast + ' and ' + last;
+    }
+
+    function capacityAtLimitMessage(selectedProductOptions, selectedUserIds){
+      var userCount = selectedUserIds.length;
+      if(userCount === 0 || selectedProductOptions.length === 0){ return null; }
+      var capped = selectedProductOptions.filter(function(opt){ return remainingFor(opt) === userCount && userCount > 0; });
+      if(capped.length === 0){ return null; }
+      var labels = capped.map(productLabel);
+      var noun = userCount === 1 ? 'user' : 'users';
+      return 'You can only assign ' + userCount + ' ' + noun + ' as ' + listToSentence(labels) + ' only have ' + userCount + ' licenses remaining';
+    }
+
+    function showAssignWarning(messages){
+      if(!assignWarning) return;
+      assignWarning.innerHTML = messages.join('<br/>');
+      assignWarning.style.display = 'block';
+    }
+    function hideAssignWarning(){ if(assignWarning){ assignWarning.style.display = 'none'; assignWarning.innerHTML=''; } }
+
+    function updateAssignWarning(){
+      var selectedProducts = getSelectedProductOptions();
+      var selectedUsers = selectedValues(usersSelect);
+      var overCapacity = validateCapacity(selectedProducts, selectedUsers);
+      if(overCapacity.length > 0){ showAssignWarning(overCapacity); return; }
+      var atLimit = capacityAtLimitMessage(selectedProducts, selectedUsers);
+      if(atLimit){ showAssignWarning([atLimit]); return; }
+      hideAssignWarning();
+    }
+
+    assignBtn && assignBtn.addEventListener('click', function(){
+      var selectedProducts = getSelectedProductOptions();
+      var selectedUsers = selectedValues(usersSelect);
+      if(selectedProducts.length===0 || selectedUsers.length===0){ return; }
+
+      var capacityIssues = validateCapacity(selectedProducts, selectedUsers);
+      if(capacityIssues.length > 0){
+        showAssignWarning(capacityIssues);
+        return; // block submission
+      }
+
+      hideAssignWarning();
+      setArrayInputs('assign-hidden', 'product_ids', selectedProducts.map(selectedValue));
+      setArrayInputs('assign-hidden', 'user_ids', selectedUsers);
+      document.getElementById('assign-form').submit();
+    });
+    unassignBtn && unassignBtn.addEventListener('click', function(){
+      var ps = selectedValues(productsSelect);
+      var us = selectedValues(usersSelect);
+      if(ps.length===0 || us.length===0){ return; }
+      setArrayInputs('unassign-hidden', 'product_ids', ps);
+      setArrayInputs('unassign-hidden', 'user_ids', us);
+      document.getElementById('unassign-form').submit();
+    });
+
+    function clearSelection(select){ Array.from(select.options||[]).forEach(o=>o.selected=false); }
+    unselectProductsBtn && unselectProductsBtn.addEventListener('click', function(){ clearSelection(productsSelect); updateAssignWarning(); });
+    unselectUsersBtn && unselectUsersBtn.addEventListener('click', function(){ clearSelection(usersSelect); updateAssignWarning(); });
+
+    productsSelect && productsSelect.addEventListener('change', updateAssignWarning);
+    usersSelect && usersSelect.addEventListener('change', updateAssignWarning);
+  })();
+</script>
+
+<div style="margin-top:24px;">
+  <%= link_to "View assigned licenses", account_license_assignments_path(@account) %>
+</div>
+
+

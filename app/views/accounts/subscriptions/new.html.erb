@@ -1,0 +1,9 @@
+<h1>New Subscription for <%= @account.name %></h1>
+
+<%= render "form", subscription: @subscription, products: @products %>
+
+<p>
+  <%= link_to "Back", account_subscriptions_path(@account) %>
+</p>
+
+

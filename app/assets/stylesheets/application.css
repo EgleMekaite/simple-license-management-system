@@ -1,0 +1,40 @@
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS (and SCSS, if configured) file within this directory, lib/assets/stylesheets, or any plugin's
+ * vendor/assets/stylesheets directory can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the bottom of the
+ * compiled file so the styles you add here take precedence over styles defined in any other CSS
+ * files in this directory. Styles in this file should be added after the last require_* statement.
+ * It is generally better to create a new file per style scope.
+ *
+ *= require_tree .
+ *= require_self
+ */
+
+.page-title { margin: 12px 0 8px; font-size: 28px; }
+.alert-banner { background: #fdecea; color: #b71c1c; padding: 12px; border-radius: 6px; margin: 12px 0; }
+
+.assignment-grid {
+  display: grid;
+  grid-template-columns: 1fr 220px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.panel { }
+.panel-title { margin: 8px 0; }
+.listbox {
+  width: 100%;
+  min-height: 320px;
+}
+.below-list { margin-top: 8px; }
+
+.action-panel { display: flex; flex-direction: column; gap: 16px; margin-top: 36px; align-items: stretch; }
+.btn { padding: 8px 16px; cursor: pointer; }
+.btn-large { padding: 12px 24px; font-weight: 600; }
+
+.table-list { width: 100%; border-collapse: collapse; }
+.table-list th, .table-list td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }

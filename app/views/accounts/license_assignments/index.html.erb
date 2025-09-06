@@ -1,0 +1,28 @@
+<h1 class="page-title">Assigned Licenses for <%= @account.name %></h1>
+
+<p>
+  <%= link_to "Back to Account", account_path(@account) %>
+</p>
+
+<% if @assignments.any? %>
+  <table class="table-list">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>User</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @assignments.each do |la| %>
+        <tr>
+          <td><%= la.product.name %></td>
+          <td><%= la.user.name %> (<%= la.user.email %>)</td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p>No licenses assigned yet.</p>
+<% end %>
+
+
