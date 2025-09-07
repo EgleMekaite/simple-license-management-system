@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_09_06_090340) do
+ActiveRecord::Schema[7.1].define(version: 2025_09_07_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
@@ -27,6 +27,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_09_06_090340) do
     t.uuid "product_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["account_id", "product_id"], name: "index_license_assignments_on_account_and_product"
     t.index ["account_id", "user_id", "product_id"], name: "index_license_assignments_on_account_user_product", unique: true
     t.index ["account_id"], name: "index_license_assignments_on_account_id"
     t.index ["product_id"], name: "index_license_assignments_on_product_id"
@@ -60,6 +61,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_09_06_090340) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "lower((email)::text)", name: "index_users_on_lower_email", unique: true
+    t.index ["account_id", "name"], name: "index_users_on_account_id_and_name"
     t.index ["account_id"], name: "index_users_on_account_id"
   end
 

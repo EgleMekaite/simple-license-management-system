@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Users (nested under accounts)", type: :request do
+RSpec.describe "Accounts::UsersController", type: :request do
   let!(:account) { create(:account) }
 
   describe "GET /accounts/:account_id/users" do

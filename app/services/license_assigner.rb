@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'set'
 
 class LicenseAssigner
@@ -6,7 +7,7 @@ class LicenseAssigner
   # @param product_ids [Array<UUID>]
   # @param user_ids [Array<UUID>]
   def initialize(account_id, product_ids, user_ids)
-    @account_id = account_id
+    @account_id = account_id.to_s
     @product_ids = Array(product_ids).map(&:to_s)
     @user_ids = Array(user_ids).map(&:to_s)
     @messages = []
@@ -25,52 +26,62 @@ class LicenseAssigner
   attr_reader :account_id, :product_ids, :user_ids, :messages
 
   def assign_licenses
-    total_assigned = 0
-    rows_to_insert = []
-
-    product_ids.each do |product_id|
-      rows_for_product, info_message = build_rows_and_message(product_id)
-      rows_to_insert.concat(rows_for_product)
+    assignment_rows = product_ids.flat_map do |product_id|
+      rows, info_message = build_rows_and_message(product_id)
       messages << info_message if info_message
+      rows
     end
 
-    if rows_to_insert.any?
-      result = LicenseAssignment.insert_all(
-        rows_to_insert,
-        unique_by: :index_license_assignments_on_account_user_product,
-        record_timestamps: true
-      )
-      total_assigned = result.count
-    end
+    return [0, messages] if assignment_rows.empty?
+
+    total_assigned = create_license_assignments(assignment_rows)
 
     [total_assigned, messages]
+  end
+
+  def create_license_assignments(rows)
+    total_assigned = 0
+    LicenseAssignment.transaction do
+      # Also consider using `upsert_all` or managing rows in batches
+      rows.each do |attributes|
+        begin
+          LicenseAssignment.create!(attributes)
+          total_assigned += 1
+        rescue ActiveRecord::RecordInvalid => e
+          messages << e.record.errors.full_messages.join(', ')
+        rescue ActiveRecord::RecordNotUnique
+        end
+      end
+    end
+    total_assigned
   end
 
   def build_rows_and_message(product_id)
     subscription = subscriptions_by_product[product_id]
     unless subscription
-      messages << "No subscription for product #{product_names[product_id]}."
+      messages << "No subscription for product #{product_label(product_id)}."
       return [[], nil]
     end
 
-    remaining_licenses = remaining_capacity(product_id, subscription)
-    candidates = candidate_user_ids(product_id)
-    to_assign = candidates.first(remaining_licenses)
+    available_licenses_count = remaining_license_count(product_id, subscription)
+    eligible_user_ids_for_product = eligible_user_ids(product_id)
+    duplicates_count = duplicates_count_for(eligible_user_ids_for_product.size)
 
-    rows = build_assignment_rows(product_id, to_assign)
-    info_message = capacity_message(product_id, candidates, to_assign, remaining_licenses)
-
-    [rows, info_message]
+    if eligible_user_ids_for_product.size > available_licenses_count
+      exhausted_capacity_result(product_id, available_licenses_count, duplicates_count)
+    else
+      successful_assignment_result(product_id, eligible_user_ids_for_product, duplicates_count)
+    end
   end
 
-  def remaining_capacity(product_id, subscription)
+  def remaining_license_count(product_id, subscription)
     total_licenses = subscription.number_of_licenses
     current_licenses = assigned_licenses_per_product[product_id].to_i
     [total_licenses - current_licenses, 0].max
   end
 
-  def candidate_user_ids(product_id)
-    already_assigned_for_product = assigned_product_licenses[product_id] || Set.new
+  def eligible_user_ids(product_id)
+    already_assigned_for_product = licensed_user_ids_by_product[product_id] || Set.new
     user_ids.reject { |user_id| already_assigned_for_product.include?(user_id) }
   end
 
@@ -80,11 +91,33 @@ class LicenseAssigner
     end
   end
 
-  def capacity_message(product_id, candidates, to_assign, remaining_licenses)
-    skipped_capacity = candidates.size - to_assign.size
-    return nil unless skipped_capacity > 0
+  def capacity_warning_message(product_id, remaining_license_count)
+    "Cannot assign to all selected users: #{product_label(product_id)} has #{remaining_license_count} license(s) remaining."
+  end
 
-    "[#{product_label(product_id)}] insufficient capacity (#{remaining_licenses} remaining)."
+  def exhausted_capacity_result(product_id, remaining_licenses_count, duplicates_count)
+    capacity_message = capacity_warning_message(product_id, remaining_licenses_count)
+    add_duplicates_message(product_id, duplicates_count)
+    [[], capacity_message]
+  end
+
+  def successful_assignment_result(product_id, eligible_ids, duplicates_count)
+    assignment_rows = build_assignment_rows(product_id, eligible_ids)
+    add_duplicates_message(product_id, duplicates_count)
+    [assignment_rows, nil]
+  end
+
+  def add_duplicates_message(product_id, duplicates_count)
+    return if duplicates_count.to_i <= 0
+    messages << duplicates_warning_message(product_id, duplicates_count)
+  end
+
+  def duplicates_warning_message(product_id, duplicates_count)
+    "[#{product_label(product_id)}] #{duplicates_count} user(s) already licensed."
+  end
+
+  def duplicates_count_for(eligible_count)
+    [user_ids.size - eligible_count, 0].max
   end
 
   def product_label(product_id)
@@ -101,27 +134,26 @@ class LicenseAssigner
   end
 
   def assigned_licenses_per_product
-    @assigned_licenses_per_product ||= LicenseAssignment
-      .for_account(account_id)
-      .for_products(product_ids)
-      .group(:product_id)
-      .count
+    @assigned_licenses_per_product ||= begin
+      pairs = assignment_pairs_for_products
+      pairs.group_by { |product_id, _| product_id }
+           .transform_values(&:size)
+    end
   end
 
-  def existing_assignment_pairs
-    @existing_assignment_pairs ||= LicenseAssignment
+  def assignment_pairs_for_products
+    @assignment_pairs_for_products ||= LicenseAssignment
       .for_account(account_id)
       .for_products(product_ids)
-      .for_users(user_ids)
       .pluck(:product_id, :user_id)
   end
 
-  def assigned_product_licenses
-    @assigned_product_licenses ||= group_pairs_by_product(existing_assignment_pairs)
+  def licensed_user_ids_by_product
+    @licensed_user_ids_by_product ||= group_pairs_by_product(assignment_pairs_for_products)
   end
 
   def group_pairs_by_product(pairs)
-    pairs.group_by { |product_id, _| product_id.to_s }
-         .transform_values { |rows| rows.map { |_, user_id| user_id.to_s }.to_set }
+    pairs.group_by { |product_id, _| product_id }
+         .transform_values { |rows| rows.map { |_, user_id| user_id }.to_set }
   end
 end

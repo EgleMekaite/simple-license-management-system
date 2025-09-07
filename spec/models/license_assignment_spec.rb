@@ -47,12 +47,5 @@ RSpec.describe LicenseAssignment, type: :model do
         expect(LicenseAssignment.for_products([first_product.id])).not_to include(second_license_assignment)
       end
     end
-
-    describe '.for_users' do
-      it 'returns assignments matching the given user ids' do
-        expect(LicenseAssignment.for_users([first_user.id])).to include(first_license_assignment)
-        expect(LicenseAssignment.for_users([first_user.id])).not_to include(second_license_assignment)
-      end
-    end
   end
 end

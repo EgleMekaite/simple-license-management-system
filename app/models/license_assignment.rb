@@ -11,5 +11,4 @@ class LicenseAssignment < ApplicationRecord
 
   scope :for_account, ->(account_id) { where(account_id: account_id) }
   scope :for_products, ->(product_ids) { where(product_id: product_ids) }
-  scope :for_users, ->(user_ids) { where(user_id: user_ids) }
 end

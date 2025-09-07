@@ -5,22 +5,25 @@
 </p>
 
 <% if @assignments.any? %>
-  <table class="table-list">
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>User</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @assignments.each do |la| %>
+  <%  @assignments.each do |product_name, assignments_for_product| %>
+    <h2><%= product_name %></h2>
+    <table class="table-list" style="margin-bottom:16px;">
+      <thead>
         <tr>
-          <td><%= la.product.name %></td>
-          <td><%= la.user.name %> (<%= la.user.email %>)</td>
+          <th>User</th>
+          <th>Email</th>
         </tr>
-      <% end %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <% assignments_for_product.each do |assignment| %>
+          <tr>
+            <td><%= assignment.user.name %></td>
+            <td><%= assignment.user.email %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
 <% else %>
   <p>No licenses assigned yet.</p>
 <% end %>

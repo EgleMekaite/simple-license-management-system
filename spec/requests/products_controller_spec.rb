@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Products", type: :request do
+RSpec.describe "ProductsController", type: :request do
   describe "GET /products" do
     it "renders the index successfully" do
       get products_path

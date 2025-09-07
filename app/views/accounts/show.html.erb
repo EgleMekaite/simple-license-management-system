@@ -1,30 +1,38 @@
 <h1 class="page-title">Account: <%= @account.name %></h1>
-
-<% if flash[:alert].present? %>
-  <div class="alert-banner">
-    <%= flash[:alert] %>
+<% content_for :flash_override do %>
+  <div class="flash-slot">
+    <% if flash[:notice].present? %>
+      <div class="notice-banner"><%= flash[:notice] %></div>
+    <% end %>
+    <% if flash[:alert].present? %>
+      <div class="alert-banner"><%= flash[:alert] %></div>
+    <% end %>
+    <div id="client-flash-banner" class="alert-banner" style="display:none;"></div>
   </div>
 <% end %>
+<%= yield :flash_override %>
 
 <div class="assignment-grid">
   <div class="panel panel-left">
     <h2 class="panel-title">Product Licenses</h2>
     <form id="assign-form" action="<%= account_license_assignments_path(@account) %>" method="post" style="display:none;">
-      <%= csrf_meta_tags %>
-      <div id="assign-hidden"></div>
+      <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+      <div id="assign-hidden-products"></div>
+      <div id="assign-hidden-users"></div>
     </form>
     <form id="unassign-form" action="<%= unassign_account_license_assignments_path(@account) %>" method="post" style="display:none;">
-      <%= csrf_meta_tags %>
-      <div id="unassign-hidden"></div>
+      <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+      <div id="unassign-hidden-products"></div>
+      <div id="unassign-hidden-users"></div>
     </form>
-
-    <select id="product-list" size="12" multiple class="listbox">
-      <% Subscription.where(account: @account).includes(:product).order("products.name").each do |sub| %>
-        <% used = LicenseAssignment.where(account: @account, product_id: sub.product_id).count %>
-        <% remaining = [sub.number_of_licenses - used, 0].max %>
-        <option value="<%= sub.product_id %>" data-remaining="<%= remaining %>" data-label="<%= sub.product.name %>"><%= sub.product.name %> (<%= used %>/<%= sub.number_of_licenses %>)</option>
+    <div id="product-list" class="listbox" style="overflow:auto; max-height:340px; border:1px solid #000;">
+      <% @subscription_rows.each do |row| %>
+        <label class="row-check" style="display:block; padding:4px 6px; cursor:pointer;">
+          <input type="checkbox" class="product-check" name="product_ids[]" value="<%= row[:product_id] %>" data-remaining="<%= row[:remaining] %>" data-label="<%= row[:product_name] %>" style="margin-right:6px;">
+          <%= row[:product_name] %> (<%= row[:remaining] %>/<%= row[:number_of_licenses] %>)
+        </label>
       <% end %>
-    </select>
+    </div>
     <div class="below-list">
       <button type="button" id="unselect-products-btn" class="btn">Unselect products</button>
     </div>
@@ -42,21 +50,30 @@
 
   <div class="panel panel-right">
     <h2 class="panel-title">Users</h2>
-    <select id="user-list" size="12" multiple class="listbox">
-      <% @account.users.order(:name).each do |u| %>
-        <option value="<%= u.id %>"><%= u.name %></option>
+    <div id="user-list" class="listbox" style="overflow:auto; max-height:340px; border:1px solid #000;">
+      <% @users.each do |user| %>
+        <label class="row-check" style="display:block; padding:4px 6px; cursor:pointer;">
+          <input type="checkbox" class="user-check" name="user_ids[]" value="<%= user.id %>" style="margin-right:6px;">
+          <%= user.name %>
+        </label>
       <% end %>
-    </select>
+    </div>
     <div class="below-list">
       <button type="button" id="unselect-users-btn" class="btn">Unselect users</button>
     </div>
   </div>
 </div>
 
+<style>
+  .notice-banner { background:#e6ffed; border:1px solid #b7ebc6; color:#2f7d32; padding:10px; margin-bottom:12px; }
+  .listbox .row-check { user-select: none; }
+  .listbox .row-check:hover { background:#f2f2f2; }
+  .listbox .row-check.selected { background:#e5e5e5; }
+  .listbox .row-check input { display: none; }
+</style>
 <script>
   (function(){
-    function selectedValue(select){ return select.value; }
-    function selectedValues(select){ return Array.from(select.selectedOptions||[]).map(o=>o.value); }
+    // Helpers
 
     var productsSelect = document.getElementById('product-list');
     var usersSelect = document.getElementById('user-list');
@@ -65,6 +82,7 @@
     var unselectProductsBtn = document.getElementById('unselect-products-btn');
     var unselectUsersBtn = document.getElementById('unselect-users-btn');
     var assignWarning = document.getElementById('assign-warning');
+    var clientFlashBanner = document.getElementById('client-flash-banner');
 
     function setArrayInputs(containerId, name, values){
       var container = document.getElementById(containerId);
@@ -79,9 +97,10 @@
       });
     }
 
-    function getSelectedProductOptions(){ return Array.from(productsSelect.selectedOptions||[]); }
-    function remainingFor(option){ return parseInt(option.dataset.remaining || '0', 10); }
-    function productLabel(option){ return option.dataset.label || option.textContent || option.value; }
+    function selectedProductInputs(){ return Array.from(document.querySelectorAll('#product-list input.product-check:checked')); }
+    function selectedUserInputs(){ return Array.from(document.querySelectorAll('#user-list input.user-check:checked')); }
+    function remainingFor(input){ return parseInt(input.dataset.remaining || '0', 10); }
+    function productLabel(input){ return input.dataset.label || input.value; }
 
     function validateCapacity(selectedProductOptions, selectedUserIds){
       var issues = [];
@@ -113,15 +132,23 @@
     }
 
     function showAssignWarning(messages){
-      if(!assignWarning) return;
-      assignWarning.innerHTML = messages.join('<br/>');
-      assignWarning.style.display = 'block';
+      if(clientFlashBanner){
+        clientFlashBanner.innerHTML = messages.join('<br/>');
+        clientFlashBanner.style.display = 'block';
+      } else if(assignWarning){
+        assignWarning.innerHTML = messages.join('<br/>');
+        assignWarning.style.display = 'block';
+      }
     }
-    function hideAssignWarning(){ if(assignWarning){ assignWarning.style.display = 'none'; assignWarning.innerHTML=''; } }
+
+    function hideAssignWarning(){
+      if(clientFlashBanner){ clientFlashBanner.style.display = 'none'; clientFlashBanner.innerHTML=''; }
+      if(assignWarning){ assignWarning.style.display = 'none'; assignWarning.innerHTML=''; }
+    }
 
     function updateAssignWarning(){
-      var selectedProducts = getSelectedProductOptions();
-      var selectedUsers = selectedValues(usersSelect);
+      var selectedProducts = selectedProductInputs();
+      var selectedUsers = selectedUserInputs().map(function(i){ return i.value; });
       var overCapacity = validateCapacity(selectedProducts, selectedUsers);
       if(overCapacity.length > 0){ showAssignWarning(overCapacity); return; }
       var atLimit = capacityAtLimitMessage(selectedProducts, selectedUsers);
@@ -130,36 +157,104 @@
     }
 
     assignBtn && assignBtn.addEventListener('click', function(){
-      var selectedProducts = getSelectedProductOptions();
-      var selectedUsers = selectedValues(usersSelect);
-      if(selectedProducts.length===0 || selectedUsers.length===0){ return; }
+      var pInputs = selectedProductInputs();
+      var selectedProductIds = pInputs.map(function(i){ return i.value; });
+      var selectedUsers = selectedUserInputs().map(function(i){ return i.value; });
+      if(selectedProductIds.length===0 || selectedUsers.length===0){
+        showAssignWarning(['Please select at least one product and one user.']);
+        return;
+      }
 
-      var capacityIssues = validateCapacity(selectedProducts, selectedUsers);
+      var capacityIssues = validateCapacity(pInputs, selectedUsers);
       if(capacityIssues.length > 0){
         showAssignWarning(capacityIssues);
         return; // block submission
       }
 
       hideAssignWarning();
-      setArrayInputs('assign-hidden', 'product_ids', selectedProducts.map(selectedValue));
-      setArrayInputs('assign-hidden', 'user_ids', selectedUsers);
+      setArrayInputs('assign-hidden-products', 'product_ids', selectedProductIds);
+      setArrayInputs('assign-hidden-users', 'user_ids', selectedUsers);
       document.getElementById('assign-form').submit();
     });
+
     unassignBtn && unassignBtn.addEventListener('click', function(){
-      var ps = selectedValues(productsSelect);
-      var us = selectedValues(usersSelect);
-      if(ps.length===0 || us.length===0){ return; }
-      setArrayInputs('unassign-hidden', 'product_ids', ps);
-      setArrayInputs('unassign-hidden', 'user_ids', us);
+      var ps = selectedProductInputs().map(function(i){ return i.value; });
+      var us = selectedUserInputs().map(function(i){ return i.value; });
+      if(ps.length===0 || us.length===0){
+        showAssignWarning(['Please select at least one product and one user.']);
+        return;
+      }
+      setArrayInputs('unassign-hidden-products', 'product_ids', ps);
+      setArrayInputs('unassign-hidden-users', 'user_ids', us);
       document.getElementById('unassign-form').submit();
     });
 
-    function clearSelection(select){ Array.from(select.options||[]).forEach(o=>o.selected=false); }
-    unselectProductsBtn && unselectProductsBtn.addEventListener('click', function(){ clearSelection(productsSelect); updateAssignWarning(); });
-    unselectUsersBtn && unselectUsersBtn.addEventListener('click', function(){ clearSelection(usersSelect); updateAssignWarning(); });
+    unselectProductsBtn && unselectProductsBtn.addEventListener('click', function(){
+      var container = productsSelect;
+      if(container){
+        container.querySelectorAll('input.product-check').forEach(function(cb){ cb.checked = false; });
+        container.querySelectorAll('.row-check').forEach(function(el){ el.classList.remove('selected'); });
+      }
+      updateAssignWarning();
+    });
 
-    productsSelect && productsSelect.addEventListener('change', updateAssignWarning);
-    usersSelect && usersSelect.addEventListener('change', updateAssignWarning);
+    unselectUsersBtn && unselectUsersBtn.addEventListener('click', function(){
+      var container = usersSelect;
+      if(container){
+        container.querySelectorAll('input.user-check').forEach(function(cb){ cb.checked = false; });
+        container.querySelectorAll('.row-check').forEach(function(el){ el.classList.remove('selected'); });
+      }
+      updateAssignWarning();
+    });
+
+    function refreshSelectionUI(){
+      if(productsSelect){
+        productsSelect.querySelectorAll('.row-check').forEach(function(row){
+          var input = row.querySelector('input.product-check');
+          if(!input) return;
+          row.classList.toggle('selected', !!input.checked);
+        });
+      }
+      if(usersSelect){
+        usersSelect.querySelectorAll('.row-check').forEach(function(row){
+          var input = row.querySelector('input.user-check');
+          if(!input) return;
+          row.classList.toggle('selected', !!input.checked);
+        });
+      }
+    }
+
+    productsSelect && productsSelect.addEventListener('change', function(){
+      refreshSelectionUI();
+      updateAssignWarning();
+    });
+
+    usersSelect && usersSelect.addEventListener('change', function(){
+      refreshSelectionUI();
+      updateAssignWarning();
+    });
+
+    // Make entire row clickable to toggle checkbox state
+    function bindRowToggle(container, checkboxSelector){
+      if(!container) return;
+      container.addEventListener('click', function(e){
+        var row = e.target.closest('.row-check');
+        if(!row || !container.contains(row)) return;
+        var input = row.querySelector(checkboxSelector);
+        if(!input) return;
+        if(e.target !== input){
+          e.preventDefault();
+          input.checked = !input.checked;
+          var evt = new Event('change', { bubbles: true });
+          input.dispatchEvent(evt);
+        }
+      });
+    }
+    bindRowToggle(productsSelect, 'input.product-check');
+    bindRowToggle(usersSelect, 'input.user-check');
+
+    // Initial selection styling sync
+    refreshSelectionUI();
   })();
 </script>
 

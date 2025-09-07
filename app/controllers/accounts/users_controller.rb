@@ -5,7 +5,7 @@ module Accounts
     before_action :set_account
 
     def index
-      @users = @account.users.order(:name)
+      @users = @account.users.ordered_by_name
     end
 
     def new

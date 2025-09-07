@@ -10,11 +10,11 @@
 
 <% if @subscriptions.any? %>
   <ul>
-    <% @subscriptions.each do |sub| %>
+    <% @subscriptions.each do |subscription| %>
       <li>
-        <strong><%= sub.product.name %></strong>
-        — Licenses: <%= sub.number_of_licenses %>
-        — <%= sub.issued_at.to_date %> → <%= sub.expires_at.to_date %>
+        <strong><%= subscription.product.name %></strong>
+        — Licenses: <%= subscription.number_of_licenses %>
+        — <%= subscription.issued_at.to_date %> → <%= subscription.expires_at.to_date %>
       </li>
     <% end %>
   </ul>

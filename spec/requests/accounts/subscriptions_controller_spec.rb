@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Subscriptions (nested under accounts)", type: :request do
+RSpec.describe "Accounts::SubscriptionsController", type: :request do
   let!(:account) { create(:account) }
   let!(:product) { create(:product) }
 
@@ -13,7 +13,7 @@ RSpec.describe "Subscriptions (nested under accounts)", type: :request do
   end
 
   describe "GET /accounts/:account_id/subscriptions/new" do
-    it "renders the new subscription form" do
+    it "renders the form for creating a new subscription" do
       get new_account_subscription_path(account)
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("New Subscription")
@@ -22,7 +22,7 @@ RSpec.describe "Subscriptions (nested under accounts)", type: :request do
 
   describe "POST /accounts/:account_id/subscriptions" do
     context "with valid params" do
-      it "creates a subscription and redirects to the subscriptions index" do
+      it "creates a subscription and redirects to the account subscriptions index" do
         valid_params = {
           subscription: {
             product_id: product.id,
@@ -47,7 +47,7 @@ RSpec.describe "Subscriptions (nested under accounts)", type: :request do
     end
 
     context "with invalid params" do
-      it "does not create and renders new with errors" do
+      it "does not create the subscription and renders the form with errors" do
         invalid_params = {
           subscription: {
             product_id: product.id,

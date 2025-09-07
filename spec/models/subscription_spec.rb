@@ -21,5 +21,26 @@ RSpec.describe Subscription, type: :model do
       expect(subscription).not_to be_valid
       expect(subscription.errors[:expires_at]).to include('must be after issued_at')
     end
+
+    it 'validates product uniqueness scoped to account' do
+      # Existing subscription for the same account/product
+      create(:subscription, account: account, product: product)
+      duplicate = build(:subscription, account: account, product: product)
+      expect(duplicate).not_to be_valid
+      # We expect a uniqueness error either on product or base depending on validation configuration
+      expect(duplicate.errors[:product] + duplicate.errors[:product_id] + duplicate.errors[:base]).not_to be_empty
+    end
+  end
+
+  describe 'callbacks' do
+    it 'prevents destroying when license assignments exist for its account/product' do
+      subscription = create(:subscription, account: account, product: product)
+      user = create(:user, account: account)
+      create(:license_assignment, account: account, product: product, user: user)
+
+      expect(subscription.destroy).to be false
+      expect(subscription.errors[:base]).to include('Cannot delete subscription while licenses are assigned')
+      expect(Subscription.exists?(subscription.id)).to be true
+    end
   end
 end

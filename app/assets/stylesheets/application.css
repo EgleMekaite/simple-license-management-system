@@ -16,6 +16,11 @@
 
 .page-title { margin: 12px 0 8px; font-size: 28px; }
 .alert-banner { background: #fdecea; color: #b71c1c; padding: 12px; border-radius: 6px; margin: 12px 0; }
+.notice-banner { background: #e6ffed; border:1px solid #b7ebc6; color:#2f7d32; padding:10px; margin: 12px 0; border-radius: 6px; }
+.flash-slot { min-height: 48px; margin: 12px 0; }
+.flash-slot .notice-banner,
+.flash-slot .alert-banner,
+.flash-slot .flash { margin: 0; }
 
 .assignment-grid {
   display: grid;

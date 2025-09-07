@@ -12,9 +12,41 @@
   </head>
 
   <body>
-    <% flash.each do |type, message| %>
-      <div class="flash <%= type %>"><%= message %></div>
+    <% unless content_for?(:flash_override) || defined?(@suppress_layout_flash) && @suppress_layout_flash %>
+      <div class="flash-slot">
+        <% flash.each do |type, message| %>
+          <div class="flash <%= type %>"><%= message %></div>
+        <% end %>
+      </div>
     <% end %>
     <%= yield %>
+    <script>
+      (function(){
+        function hideBanners(){
+          var selectors = [
+            '.flash.notice',
+            '.flash.alert',
+            '.notice-banner',
+            '.alert-banner:not(#client-flash-banner)'
+          ];
+          var nodes = document.querySelectorAll(selectors.join(', '));
+          nodes.forEach(function(el){ el.style.display = 'none'; });
+        }
+
+        var bound = false;
+        function bind(){
+          if (bound) return; bound = true;
+          document.addEventListener('click', hideBanners);
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', bind);
+        } else {
+          bind();
+        }
+
+        document.addEventListener('turbo:load', function(){ bound = false; bind(); });
+      })();
+    </script>
   </body>
 </html>
