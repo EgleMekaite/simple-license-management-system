@@ -9,8 +9,8 @@ module Accounts
         .where(account: @account)
         .joins(:product, :user)
         .preload(:product, :user)
-        .order('products.name ASC, users.name ASC')
-        .group_by { |assignment| assignment.product.name }
+        .order('users.name ASC, products.name ASC')
+        .group_by { |assignment| assignment.user.name }
     end
 
     def create

@@ -5,27 +5,38 @@
 </p>
 
 <% if @assignments.any? %>
-  <%  @assignments.each do |product_name, assignments_for_product| %>
-    <h2><%= product_name %></h2>
-    <table class="table-list" style="margin-bottom:16px;">
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>Email</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% assignments_for_product.each do |assignment| %>
+  <table class="table-list">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Product</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @assignments.each do |user_name, assignments_for_user| %>
+        <% group_size = assignments_for_user.size %>
+        <% assignments_for_user.each_with_index do |assignment, idx| %>
           <tr>
-            <td><%= assignment.user.name %></td>
-            <td><%= assignment.user.email %></td>
+            <% if idx.zero? %>
+              <td class="user-cell" rowspan="<%= group_size %>"><%= user_name %></td>
+            <% end %>
+            <td><%= assignment.product.name %></td>
           </tr>
         <% end %>
-      </tbody>
-    </table>
-  <% end %>
+      <% end %>
+    </tbody>
+  </table>
 <% else %>
   <p>No licenses assigned yet.</p>
 <% end %>
+
+<style>
+  .table-list .user-cell {
+    font-weight: 600;
+    background: #f6f8fa;
+    border-top: 2px solid #ddd;
+    vertical-align: top;
+  }
+</style>
 
 
